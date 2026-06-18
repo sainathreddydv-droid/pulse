@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0c">
+<title>Pulse</title>
+<style>
+  :root{
+    --bg:#0a0a0c;
+    --ink:#f2efe9;
+    --dim:#6b6b73;
+    --line:#1c1c20;
+    --signal:#e8482e;     /* the one bold colour: a pulse-red */
+    --signal-soft:#3a1410;
+    --z1:#3d7a6a; --z2:#4a8a5a; --z3:#c9a227; --z4:#d97b29; --z5:#e8482e;
+    --mono:"SF Mono",ui-monospace,"Roboto Mono",Menlo,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:var(--mono);
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    display:flex;flex-direction:column;overflow:hidden;
+    -webkit-user-select:none;user-select:none;
+  }
+
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px 12px;border-bottom:1px solid var(--line);
+  }
+  .brand{font-size:13px;letter-spacing:.32em;font-weight:600;text-transform:uppercase}
+  .brand b{color:var(--signal)}
+  .status{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);transition:background .3s}
+  .dot.on{background:var(--signal);box-shadow:0 0 8px var(--signal)}
+
+  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;padding:10px}
+
+  /* HERO: the beating number */
+  .hero{display:flex;flex-direction:column;align-items:center;position:relative}
+  .ring{
+    width:230px;height:230px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;position:relative;
+  }
+  .ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+  .bpm{
+    font-size:88px;font-weight:700;line-height:.9;letter-spacing:-.04em;
+    font-variant-numeric:tabular-nums;
+  }
+  .bpm.beat{animation:beat .18s ease-out}
+  @keyframes beat{0%{transform:scale(1)}40%{transform:scale(1.07)}100%{transform:scale(1)}}
+  .unit{font-size:11px;letter-spacing:.32em;color:var(--dim);margin-top:10px;text-transform:uppercase}
+  .zonelabel{margin-top:4px;font-size:12px;letter-spacing:.18em;font-weight:600;text-transform:uppercase;min-height:16px}
+
+  /* zone bar */
+  .zones{display:flex;gap:3px;width:230px;margin-top:22px}
+  .zone{flex:1;height:5px;border-radius:3px;background:var(--line);transition:all .3s}
+  .zone.lit{box-shadow:0 0 10px currentColor}
+
+  /* stat strip */
+  .strip{
+    display:grid;grid-template-columns:repeat(3,1fr);width:100%;max-width:360px;
+    border-top:1px solid var(--line);margin-top:auto;
+  }
+  .cell{padding:14px 8px;text-align:center;border-right:1px solid var(--line)}
+  .cell:last-child{border-right:none}
+  .cell .k{font-size:9px;letter-spacing:.16em;color:var(--dim);text-transform:uppercase}
+  .cell .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .cell .v small{font-size:10px;color:var(--dim);font-weight:400}
+
+  /* controls */
+  .controls{display:flex;gap:10px;padding:14px 20px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+  button{
+    flex:1;font-family:var(--mono);font-size:12px;letter-spacing:.16em;font-weight:600;
+    text-transform:uppercase;padding:15px;border-radius:12px;border:1px solid var(--line);
+    background:transparent;color:var(--ink);cursor:pointer;transition:all .18s;
+  }
+  button:active{transform:scale(.97)}
+  button.primary{background:var(--signal);border-color:var(--signal);color:#0a0a0c}
+  button.primary:disabled{background:var(--signal-soft);border-color:var(--signal-soft);color:var(--dim)}
+  button.live{background:var(--signal);border-color:var(--signal);color:#0a0a0c}
+  button:disabled{opacity:.4;cursor:default}
+  button.ghost{flex:0 0 auto;padding:15px 18px}
+
+  /* timer overlay value */
+  .timer{font-size:13px;letter-spacing:.14em;color:var(--dim);text-align:center;margin-top:18px;min-height:18px}
+  .timer b{color:var(--ink);font-size:15px}
+
+  /* log sheet */
+  .sheet{
+    position:fixed;inset:0;background:var(--bg);z-index:50;
+    transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+    display:flex;flex-direction:column;
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  .sheet.open{transform:translateY(0)}
+  .sheet header{border-bottom:1px solid var(--line)}
+  .sheet-body{flex:1;overflow-y:auto;padding:8px 20px}
+  .sess{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .sess .lo{color:var(--dim);font-size:11px;margin-top:3px}
+  .sess .r{text-align:right}
+  .empty{color:var(--dim);text-align:center;padding:50px 20px;font-size:12px;letter-spacing:.1em;line-height:1.8}
+  .sheet-actions{display:flex;gap:10px;padding:14px 20px}
+  .close-x{background:none;border:none;color:var(--dim);font-size:20px;flex:0;padding:0 4px}
+
+  .hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-size:10px;letter-spacing:.1em;color:var(--dim);padding:0 24px;line-height:1.6}
+  .err{color:var(--signal)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">PUL<b>S</b>E</div>
+  <div class="status"><span class="dot" id="dot"></span><span id="st">Disconnected</span></div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="ring">
+      <svg viewBox="0 0 230 230">
+        <circle cx="115" cy="115" r="108" fill="none" stroke="var(--line)" stroke-width="3"/>
+        <circle id="arc" cx="115" cy="115" r="108" fill="none" stroke="var(--signal)" stroke-width="3"
+                stroke-linecap="round" stroke-dasharray="678" stroke-dashoffset="678" style="transition:stroke-dashoffset .4s, stroke .4s"/>
+      </svg>
+      <div class="bpm" id="bpm">--</div>
+    </div>
+    <div class="unit">beats / min</div>
+    <div class="zonelabel" id="zlabel"></div>
+
+    <div class="zones" id="zones">
+      <div class="zone" style="color:var(--z1)"></div>
+      <div class="zone" style="color:var(--z2)"></div>
+      <div class="zone" style="color:var(--z3)"></div>
+      <div class="zone" style="color:var(--z4)"></div>
+      <div class="zone" style="color:var(--z5)"></div>
+    </div>
+
+    <div class="timer" id="timer"></div>
+  </div>
+
+  <div class="strip">
+    <div class="cell"><div class="k">Avg</div><div class="v" id="avg">--</div></div>
+    <div class="cell"><div class="k">Peak</div><div class="v" id="peak">--</div></div>
+    <div class="cell"><div class="k">Cals</div><div class="v" id="cals">--</div></div>
+  </div>
+
+  <div class="hint" id="hint"></div>
+</main>
+
+<div class="controls">
+  <button type="button" class="primary" id="connect">Connect strap</button>
+  <button type="button" id="session" disabled>Start session</button>
+  <button type="button" class="ghost" id="openlog">Log</button>
+</div>
+
+<!-- LOG SHEET -->
+<div class="sheet" id="sheet">
+  <header>
+    <div class="brand">Sessions</div>
+    <button class="close-x" id="closelog">✕</button>
+  </header>
+  <div class="sheet-body" id="loglist"></div>
+  <div class="sheet-actions">
+    <button id="export">Export CSV</button>
+    <button id="clearlog" class="ghost">Clear</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PULSE — your own heart-rate app.
+   Talks ONLY to the standard Bluetooth Heart Rate Service (0x180D),
+   which your WHOOP broadcasts openly. No WHOOP account, no cloud,
+   no third-party binary. Everything stays in this one file + your
+   browser's local storage. This is yours.
+   ============================================================ */
+
+const HR_SERVICE = 0x180D;       // standard Heart Rate service
+const HR_CHAR    = 0x2A37;       // Heart Rate Measurement characteristic
+
+// ---- you can tune these two for accuracy ----
+let MAX_HR = 190;                // 220 - age; edit if you like
+let WEIGHT_KG = 70;              // for a rough calorie estimate
+
+const $ = id => document.getElementById(id);
+let device=null, hrChar=null;
+let sessionOn=false, t0=0, tick=null;
+let samples=[], peak=0, lastBeat=0;
+
+const ZONES = [
+  {n:'Recovery', max:.60, c:'--z1'},
+  {n:'Easy',     max:.70, c:'--z2'},
+  {n:'Aerobic',  max:.80, c:'--z3'},
+  {n:'Threshold',max:.90, c:'--z4'},
+  {n:'Max',      max:1.5, c:'--z5'},
+];
+
+function zoneFor(hr){
+  const p = hr / MAX_HR;
+  for(let i=0;i<ZONES.length;i++) if(p < ZONES[i].max) return i;
+  return 4;
+}
+
+function setStatus(text, on){
+  $('st').textContent = text;
+  $('dot').classList.toggle('on', !!on);
+}
+
+async function connect(ev){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  if(!navigator.bluetooth){
+    $('hint').innerHTML = '<span class="err">This browser blocks Bluetooth. On iPhone open this page in the free <b>Bluefy</b> browser. On a PC use Chrome.</span>';
+    return;
+  }
+  try{
+    setStatus('Scanning…', false);
+    $('hint').textContent='Pick your WHOOP from the list…';
+
+    // Broad request: some browsers/straps don't advertise the HR service in
+    // the advertisement packet, so filtering only by service hides the device.
+    // acceptAllDevices + optionalServices is the most reliable on Bluefy.
+    let opts;
+    try{
+      device = await navigator.bluetooth.requestDevice({
+        filters:[{services:[HR_SERVICE]}, {namePrefix:'WHOOP'}, {namePrefix:'Whoop'}],
+        optionalServices:[HR_SERVICE]
+      });
+    }catch(inner){
+      // fall back to showing everything if the filtered scan finds nothing
+      if(inner.name==='NotFoundError'){
+        device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices:true,
+          optionalServices:[HR_SERVICE]
+        });
+      } else { throw inner; }
+    }
+
+    device.addEventListener('gattserverdisconnected', onDrop);
+    setStatus('Connecting…', false);
+    const server = await device.gatt.connect();
+    const svc = await server.getPrimaryService(HR_SERVICE);
+    hrChar = await svc.getCharacteristic(HR_CHAR);
+    await hrChar.startNotifications();
+    hrChar.addEventListener('characteristicvaluechanged', onHR);
+    setStatus(device.name || 'Strap', true);
+    $('connect').textContent='Connected';
+    $('connect').classList.add('live');
+    $('session').disabled=false;
+    $('hint').textContent='Live heart rate streaming. Start a session to log it.';
+  }catch(e){
+    setStatus('Disconnected', false);
+    let msg;
+    if(e.name==='NotFoundError'){ msg='No strap picked, or none found. Wake the band (firm taps), close the WHOOP app, keep iPhone Bluetooth ON, then retry.'; }
+    else if(e.name==='SecurityError'){ msg='Bluetooth blocked. In iPhone Settings → Bluefy, turn Bluetooth ON. Open via http(s), not a file.'; }
+    else if(e.name==='NetworkError'){ msg='Connection dropped — the strap is still bonded to the WHOOP app. Force-close WHOOP, tap the band, retry.'; }
+    else if(/getPrimaryService|No Services|service/i.test(e.message)){ msg='Connected, but no heart-rate service found. Make sure it is the WHOOP, worn snug, and awake.'; }
+    else { msg = e.name + ': ' + e.message; }
+    $('hint').innerHTML='<span class="err">'+msg+'</span>';
+  }
+}
+
+function onDrop(){
+  setStatus('Disconnected', false);
+  $('connect').textContent='Connect strap';
+  $('connect').classList.remove('live');
+  $('session').disabled=true;
+  $('bpm').textContent='--';
+  $('arc').style.strokeDashoffset=678;
+}
+
+function parseHR(dv){
+  const flags = dv.getUint8(0);
+  return (flags & 0x01) ? dv.getUint16(1, true) : dv.getUint8(1);
+}
+
+function onHR(e){
+  const hr = parseHR(e.target.value);
+  if(!hr || hr<25 || hr>240) return;
+  render(hr);
+  if(sessionOn){
+    samples.push(hr);
+    if(hr>peak) peak=hr;
+    updateStats();
+  }
+}
+
+function render(hr){
+  const el=$('bpm');
+  el.textContent=hr;
+  // beat pulse, throttled so it doesn't jitter
+  const now=Date.now();
+  if(now-lastBeat>250){ el.classList.remove('beat'); void el.offsetWidth; el.classList.add('beat'); lastBeat=now; }
+
+  // ring fill = % of max
+  const pct=Math.min(hr/MAX_HR,1);
+  $('arc').style.strokeDashoffset = 678 - 678*pct;
+
+  // zone
+  const z=zoneFor(hr);
+  const col=getComputedStyle(document.documentElement).getPropertyValue(ZONES[z].c).trim();
+  $('arc').style.stroke=col;
+  $('bpm').style.color=col;
+  $('zlabel').textContent=ZONES[z].n;
+  $('zlabel').style.color=col;
+  document.querySelectorAll('.zone').forEach((b,i)=>{
+    const lit=i<=z;
+    b.classList.toggle('lit',lit);
+    b.style.background = lit ? getComputedStyle(document.documentElement).getPropertyValue(ZONES[i].c).trim() : '';
+  });
+}
+
+function updateStats(){
+  if(!samples.length) return;
+  const avg=Math.round(samples.reduce((a,b)=>a+b,0)/samples.length);
+  $('avg').textContent=avg;
+  $('peak').textContent=peak;
+  $('cals').innerHTML = estCals(avg) + '<small> kcal</small>';
+}
+
+// rough kcal: keeps it honest — a simple HR-based estimate, not lab-grade
+function estCals(avgHr){
+  const mins=(Date.now()-t0)/60000;
+  // generic formula (Keytel et al.), gender-neutral midpoint
+  const perMin = (0.45*avgHr - 22) * WEIGHT_KG / 200;
+  return Math.max(0, Math.round(perMin*mins));
+}
+
+function toggleSession(){
+  if(!sessionOn){
+    sessionOn=true; t0=Date.now(); samples=[]; peak=0;
+    $('session').textContent='Stop session';
+    $('session').classList.add('live');
+    tick=setInterval(()=>{
+      const s=Math.floor((Date.now()-t0)/1000);
+      const m=String(Math.floor(s/60)).padStart(2,'0'), ss=String(s%60).padStart(2,'0');
+      $('timer').innerHTML='<b>'+m+':'+ss+'</b> elapsed';
+      updateStats();
+    },1000);
+  } else {
+    sessionOn=false;
+    clearInterval(tick);
+    $('session').textContent='Start session';
+    $('session').classList.remove('live');
+    if(samples.length>5) saveSession();
+    $('timer').textContent='';
+  }
+}
+
+// ---------- local storage log ----------
+function getLog(){ try{return JSON.parse(localStorage.getItem('pulse_log')||'[]')}catch{return[]} }
+function setLog(l){ localStorage.setItem('pulse_log', JSON.stringify(l)); }
+
+function saveSession(){
+  const dur=Math.round((Date.now()-t0)/1000);
+  const avg=Math.round(samples.reduce((a,b)=>a+b,0)/samples.length);
+  const rec={ date:new Date().toISOString(), dur, avg, peak, cals:estCals(avg) };
+  const l=getLog(); l.unshift(rec); setLog(l);
+}
+
+function renderLog(){
+  const l=getLog(); const box=$('loglist');
+  if(!l.length){ box.innerHTML='<div class="empty">No sessions yet.<br>Connect your strap and start one.</div>'; return; }
+  box.innerHTML = l.map(s=>{
+    const d=new Date(s.date);
+    const m=Math.floor(s.dur/60), ss=String(s.dur%60).padStart(2,'0');
+    return `<div class="sess">
+      <div><div>${d.toLocaleDateString()} · ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="lo">${m}:${ss} duration</div></div>
+      <div class="r"><div>${s.avg} avg · ${s.peak} peak</div><div class="lo">${s.cals} kcal</div></div>
+    </div>`;
+  }).join('');
+}
+
+function exportCSV(){
+  const l=getLog();
+  if(!l.length){ return; }
+  const head='date,duration_sec,avg_hr,peak_hr,kcal\n';
+  const rows=l.map(s=>`${s.date},${s.dur},${s.avg},${s.peak},${s.cals}`).join('\n');
+  const blob=new Blob([head+rows],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='pulse-sessions.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------- wire up ----------
+$('connect').onclick=connect;
+$('session').onclick=toggleSession;
+$('openlog').onclick=()=>{ renderLog(); $('sheet').classList.add('open'); };
+$('closelog').onclick=()=>$('sheet').classList.remove('open');
+$('export').onclick=exportCSV;
+$('clearlog').onclick=()=>{ if(confirm('Delete all sessions?')){ setLog([]); renderLog(); } };
+
+// first-run hint
+if(!navigator.bluetooth){
+  $('hint').innerHTML='On iPhone, open this in the free <b>Bluefy</b> browser to enable Bluetooth. On a PC, use Chrome.';
+} else {
+  $('hint').textContent='Tap Connect, then pick your WHOOP from the list.';
+}
+</script>
+</body>
+</html>
